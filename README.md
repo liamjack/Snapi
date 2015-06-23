@@ -15,13 +15,13 @@ Simple PHP class for authenticating with the Snapchat™ API.
 
 ### Adding the module to php5-fpm
 
-* `sudo vi /etc/php5/fpm/conf.d/20-protobuf.ini`
+* `sudo vi /etc/php5/fpm/conf.d/20-protobuf.ini`  
 Add the following line to the file: `extension=protobuf.so`
 * `sudo service php5-fpm restart`
 
 ### Adding the module to Apache2's PHP
 
-* `sudo vi /etc/php5/apache2/conf.d/20-protobuf.ini`
+* `sudo vi /etc/php5/apache2/conf.d/20-protobuf.ini`  
 Add the following line to the file: `extension=protobuf.so`
 * `sudo service apache2 restart`
 
@@ -37,8 +37,8 @@ You should have received a copy of the GNU General Public License along with thi
 
 # Credits
 
-* [php-protobuf](https://github.com/allegro/php-protobuf) - @allegro
-* @liamcottle
+* [php-protobuf](https://github.com/allegro/php-protobuf) - allegro
+* liamcottle
 * billybobs
 
 # Disclaimer
