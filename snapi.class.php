@@ -3,6 +3,8 @@
 class Snapi
 {
     const USER_AGENT = 'Snapchat/9.10.0.0 Beta (A116; Android 4.4.2; gzip)';
+    const GOOGLE_PLAY_SERVICES_VERSION = 7574036;
+
     const URL = 'https://feelinsonice-hrd.appspot.com';
     const SECRET = 'iEk21fuwZApXlz93750dmW22pw389dPwOk';
     const STATIC_TOKEN = 'm198sOkJEn37DjqZ32lpRu76xmw288xSQ9';
@@ -11,7 +13,7 @@ class Snapi
     private $google_email;
     private $google_password;
     private $google_auth_token;
-    public $google_attestation;
+    private $google_attestation;
     private $google_gcm_id;
     private $device_token_set;
     private $auth_token;
@@ -72,7 +74,7 @@ class Snapi
             "operatorCountry" => "us",
             "lang" => "en_US",
             "sdk_version" => 19,
-            "google_play_services_version" => 7574036,
+            "google_play_services_version" => $this::GOOGLE_PLAY_SERVICES_VERSION,
             "accountType" => "HOSTED_OR_GOOGLE",
             "service" => "audience:server:client_id:694893979329-l59f3phl42et9clpoo296d8raqoljl6p.apps.googleusercontent.com",
             "source" => "android",
@@ -119,7 +121,7 @@ class Snapi
             "device" => 4343470343591528399,
             "sender" => 191410808405,
             "app_ver" => 686,
-            "gcm_ver" => 7574036,
+            "gcm_ver" => $this::GOOGLE_PLAY_SERVICES_VERSION,
             "app" => "com.snapchat.android",
             "iat" => time(),
             "cert" => "49f6badb81d89a9e38d65de76f09355071bd67e7"
@@ -132,7 +134,7 @@ class Snapi
             'User-Agent: Android-GCM/1.5 (A116 _Quad KOT49H)',
             'app: com.snapchat.android',
             'Authorization: AidLogin 4343470343591528399:5885638743641649694',
-            'Gcm-ver: 7574036'
+            'Gcm-ver: ' . $this::GOOGLE_PLAY_SERVICES_VERSION
         ));
         curl_setopt($ch, CURLOPT_ENCODING, "gzip");
 
@@ -147,7 +149,7 @@ class Snapi
         return substr($return, 6);
     }
 
-    public function getGoogleAttestation($username, $password, $timestamp, $endpoint = "/loq/login")
+    private function getGoogleAttestation($username, $password, $timestamp, $endpoint = "/loq/login")
     {
         require_once 'pb_proto_snet_idle.php';
 
@@ -159,7 +161,7 @@ class Snapi
         $dataContainer->setApkPackageName("com.snapchat.android");
         $dataContainer->setApkCertificateDigestSha256("/\034\252\374\241\3550\320\264\343\210c\356\372\276\240\350\025q\037\244\317y\270\"Q\232\202Y\331ZX");
         $dataContainer->setApkDigestSha256("\0003H;\207\037\370\021\0356\362\370 l\026\032\331\3502\262X\246\325\327\030\264%s\231:\222\354");
-        $dataContainer->setGmsVersion(7574036);
+        $dataContainer->setGmsVersion($this::GOOGLE_PLAY_SERVICES_VERSION);
 
         $suExec = new SuExec();
 
@@ -191,7 +193,7 @@ class Snapi
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
     		'Accept:',
     		'Expect:',
-            'User-Agent: SafetyNet/7574000 (A116 _Quad KOT49H); gzip',
+            'User-Agent: SafetyNet/' . $this::GOOGLE_PLAY_SERVICES_VERSION . ' (A116 _Quad KOT49H); gzip',
             'content-type: application/x-protobuf'
         ));
         curl_setopt($ch, CURLOPT_ENCODING, "gzip");
