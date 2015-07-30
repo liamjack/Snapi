@@ -1,6 +1,6 @@
 <?php
 
-require 'snapi.class.php';
+require 'inc/snapi.class.php';
 
 $snapi = new Snapi("GoogleEmailAddress", "GooglePassword");
 
