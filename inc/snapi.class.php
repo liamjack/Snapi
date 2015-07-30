@@ -288,14 +288,16 @@ class Snapi
     {
         $ch = curl_init();
 
-        curl_setopt($ch, CURLOPT_URL, "http://104.131.99.233/");
+        curl_setopt($ch, CURLOPT_URL, "http://client-auth.casper.io/");
         curl_setopt($ch, CURLINFO_HEADER_OUT, TRUE);
         curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
         curl_setopt($ch, CURLOPT_HEADER, FALSE);
         curl_setopt($ch, CURLOPT_ENCODING, "gzip");
         curl_setopt($ch, CURLOPT_POST, TRUE);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, array("keys" => '["password","timestamp","username"]',
-        "values" => '["' . $password . '","' . $timestamp . '","' . $username . '"]'));
+        curl_setopt($ch, CURLOPT_POSTFIELDS,
+        array("username" => $username,
+        "password" => $password,
+        "timestamp" => $timestamp));
 
         $return = curl_exec($ch);
 
