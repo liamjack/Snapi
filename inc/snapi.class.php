@@ -2,10 +2,10 @@
 
 class Snapi
 {
-    const GOOGLE_PLAY_SERVICES_VERSION = 7895036;
+    const GOOGLE_PLAY_SERVICES_VERSION = 7899036;
 
-    const USER_AGENT = 'Snapchat/9.13.1.0 Beta (A116; Android 4.4.2; gzip)';
-    const APK_DIGEST_SHA256 = 'VMQYnGA3YgMF2dJsy4WPPtMw0zu2EZZ9Yl6k3p5N7Ps=';
+    const USER_AGENT = 'Snapchat/9.14.1.0 (CINK FIVE; Android 4.1.2; gzip)';
+    const APK_DIGEST_SHA256 = 'pS+fbZ4Xw0ThusoWRo2eCldGmHohNYvau/VULlJbBnQ=';
     const APK_CERTIFICATE_DIGEST_SHA256 = 'Lxyq/KHtMNC044hj7vq+oOgVcR+kz3m4IlGaglnZWlg=';
 
     const GOOGLE_PUBLIC_KEY = 'AAAAgMom/1a/v0lblO2Ubrt60J2gcuXSljGFQXgcyZWveWLEwo6prwgi3iJIZdodyhKZQrNWp5nKJ3srRXcUW+F1BD3baEVGcmEgqaLZUNBjm057pKRI16kB0YppeGx5qIQ5QjKzsR8ETQbKLNWgRY0QRNVz34kMJR3P/LgHax/6rmf5AAAAAwEAAQ==';
@@ -60,37 +60,6 @@ class Snapi
         return $return;
     }
 
-    private function getEncryptedPasswd($google_email, $google_password)
-    {
-        require 'phpseclib/Math/BigInteger.php';
-        require 'phpseclib/Crypt/RSA.php';
-
-        $googleDefaultPublicKey = "AAAAgMom/1a/v0lblO2Ubrt60J2gcuXSljGFQXgcyZWveWLEwo6prwgi3iJIZdodyhKZQrNWp5nKJ3srRXcUW+F1BD3baEVGcmEgqaLZUNBjm057pKRI16kB0YppeGx5qIQ5QjKzsR8ETQbKLNWgRY0QRNVz34kMJR3P/LgHax/6rmf5AAAAAwEAAQ==";
-        $binaryKey = bin2hex(base64_decode($googleDefaultPublicKey));
-
-        $half = substr($binaryKey, 8, 256);
-        $modulus  = new Math_BigInteger(hex2bin($half), 256);
-
-        $half = substr($binaryKey, 272, 6);
-        $exponent = new Math_BigInteger(hex2bin($half), 256);
-
-        $sha1  = sha1(base64_decode($googleDefaultPublicKey), true);
-        $signature = "00" . bin2hex(substr($sha1, 0, 4));
-
-        $rsa = new Crypt_RSA();
-
-        $rsa->setPublicKeyFormat(CRYPT_RSA_PUBLIC_FORMAT_RAW);
-        $rsa->loadKey(array("n" => $modulus, "e" => $exponent));
-        $rsa->setPublicKey();
-
-        $plain = "{$google_email}\x00{$google_password}";
-        $rsa->setEncryptionMode("CRYPT_RSA_ENCRYPTION_OAEP");
-        $encrypted = bin2hex($rsa->encrypt($plain));
-
-        $output = hex2bin($signature . $encrypted);
-        return str_replace(array("+", "/"), array("-", "_"), mb_convert_encoding(base64_encode($output), "US-ASCII"));
-    }
-
     private function getGoogleAuthToken()
     {
         if(!isset($this->google_device_id)) {
@@ -120,7 +89,7 @@ class Snapi
             "callerPkg" => "com.snapchat.android",
             "callerSig" => "49f6badb81d89a9e38d65de76f09355071bd67e7",
             "Email" => $this->google_email,
-            "EncryptedPasswd" => $this->getEncryptedPasswd($this->google_email, $this->google_password)
+            "Passwd" => $this->google_password
         )));
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
     		'Accept:',
@@ -312,8 +281,50 @@ class Snapi
 
         curl_close($ch);
 
-        return json_decode($return);
+        if($this->validateDeviceTokenSet($return->dtoken1i)) {
+            return json_decode($return);
+        } else {
+            return false;
+        }
 	}
+
+    private function validateDeviceTokenSet($dtoken1i)
+    {
+        $timestamp = $this->getTimestamp();
+
+        $ch = curl_init();
+
+        curl_setopt($ch, CURLOPT_URL, $this::URL . "/loq/and/register_exp");
+        curl_setopt($ch, CURLINFO_HEADER_OUT, TRUE);
+        curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
+        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
+        curl_setopt($ch, CURLOPT_HEADER, FALSE);
+        curl_setopt($ch, CURLOPT_POST, TRUE);
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(array(
+            "device_unique_id" => base64_encode(hex2bin(sha1($dtoken1i))),
+            "req_token" => $this->getRequestToken($this::STATIC_TOKEN, $timestamp),
+            "timestamp" => $timestamp
+        )));
+        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
+            'Accept:',
+            'Expect:',
+            'Accept-Language: en',
+            'Accept-Locale: en_US',
+            'User-Agent: ' . $this::USER_AGENT,
+            'X-Snapchat-Client-Auth-Token: Bearer ' . $this->google_auth_token,
+        ));
+        curl_setopt($ch, CURLOPT_ENCODING, "gzip");
+
+        curl_exec($ch);
+
+        if(curl_getinfo($ch, CURLINFO_HTTP_CODE) != 200) {
+            return false;
+        }
+
+        curl_close($ch);
+
+        return true;
+    }
 
     private function getClientAuthToken($username, $password, $timestamp)
     {
@@ -427,7 +438,7 @@ class Snapi
         $return = curl_exec($ch);
 
         if(curl_getinfo($ch, CURLINFO_HTTP_CODE) != 200) {
-            return false;
+            return "Error #6";
         }
 
         curl_close($ch);
