@@ -2,10 +2,27 @@
 
 require 'inc/snapi.class.php';
 
-$snapi = new Snapi("GoogleEmailAddress", "GooglePassword");
+try {
+	$storage = file_get_contents('snapi_storage');
 
-echo "<pre>";
-var_dump($snapi->login("SnapchatUsername", "SnapchatPassword"));
-echo "</pre>";
+	if(!$storage) {
+		$snapi = new Snapi("GoogleEmailAddress", "GooglePassword");
+		$snapi->login("SnapchatUsername", "SnapchatPassword");
+	} else {
+		$snapi = unserialize($storage);
+
+		if(!$snapi) {
+			throw new Exception("unserialize Exception: unserialization failed");
+		}
+	}
+
+	// Get your own SnapTag in SVG Format
+	echo '<img src="data:image/svg+xml;base64,' . $snapi->getSnapTag() . '">';
+
+	// Serialize $snapi object to file
+	file_put_contents('snapi_storage', serialize($snapi));
+} catch(Exception $e) {
+	echo "Error: " . $e->getMessage();
+}
 
 ?>

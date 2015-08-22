@@ -23,6 +23,8 @@ class Snapi
     private $device_token_set;
     private $auth_token;
 
+    public $qr_path;
+
     public function __construct($google_email, $google_password, $google_auth_token = NULL, $google_attestation = NULL, $google_gcm_id = NULL, $device_token_set = NULL)
     {
         $this->google_email = $google_email;
@@ -31,6 +33,11 @@ class Snapi
         $this->google_attestation = $google_attestation;
         $this->google_gcm_id = $google_gcm_id;
         $this->device_token_set = $device_token_set;
+    }
+
+    public function dumpIt()
+    {
+        var_dump($this);
     }
 
     private function getTimestamp()
@@ -103,12 +110,12 @@ class Snapi
         $return = curl_exec($ch);
 
         if(curl_getinfo($ch, CURLINFO_HTTP_CODE) != 200) {
-            return false;
+            throw new Exception("getGoogleAuthToken Exception: HTTP Status Code != 200");
         }
 
         curl_close($ch);
 
-        return(substr(explode("\n", $return)[0], 5));
+        $this->google_auth_token = substr(explode("\n", $return)[0], 5);
     }
 
     private function getGoogleGCMId()
@@ -146,12 +153,12 @@ class Snapi
         $return = curl_exec($ch);
 
         if(curl_getinfo($ch, CURLINFO_HTTP_CODE) != 200) {
-            return false;
+            throw new Exception("getGoogleGCMId Exception: HTTP Status Code != 200");
         }
 
         curl_close($ch);
 
-        return substr($return, 6);
+        $this->google_gcm_id = substr($return, 6);
     }
 
     private function getGoogleAttestation($username, $password, $timestamp, $endpoint = "/loq/login")
@@ -177,8 +184,8 @@ class Snapi
 
         $unknownData = new UnknownData();
 
-        $unknownData->setUnknown1(1);
-        $unknownData->setUnknown2(1);
+        $unknownData->setUnknown1(0);
+        $unknownData->setUnknown2(0);
 
         $dataContainer->setUnknowndata($unknownData);
         $dataContainer->setTimestamp($timestamp);
@@ -206,37 +213,18 @@ class Snapi
         $return = curl_exec($ch);
 
         if(curl_getinfo($ch, CURLINFO_HTTP_CODE) != 200) {
-            return false;
+            throw new Exception("getGoogleAttestation Exception: HTTP Status Code != 200");
         }
 
         curl_close($ch);
 
-        return json_decode($return)->signedAttestation;
-    }
+        $return = json_decode($return);
 
-    public function verifyGoogleAttestation($attestation)
-    {
-        $ch = curl_init();
+        if(!$return || !isset($return->signedAttestation)) {
+            throw new Exception("getGoogleAttestation Exception: Invalid JSON / No signedAttestation returned");
+        }
 
-        curl_setopt($ch, CURLOPT_URL, "https://www.googleapis.com/androidcheck/v1/attestations/verify?key=AIzaSyDqVnJBjE5ymo--oBJt3On7HQx9xNm1RHA");
-        curl_setopt($ch, CURLINFO_HEADER_OUT, TRUE);
-        curl_setopt($ch, CURLOPT_RETURNTRANSFER, TRUE);
-        curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
-        curl_setopt($ch, CURLOPT_HEADER, FALSE);
-        curl_setopt($ch, CURLOPT_POST, TRUE);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, json_encode(array("signedAttestation" => $attestation)));
-        curl_setopt($ch, CURLOPT_HTTPHEADER, array(
-    		'Accept:',
-    		'Expect:',
-            'content-type: application/json'
-        ));
-        curl_setopt($ch, CURLOPT_ENCODING, "gzip");
-
-        $return = curl_exec($ch);
-
-        curl_close($ch);
-
-        return json_decode($return)->isValidSignature;
+        $this->google_attestation = $return->signedAttestation;
     }
 
     private function getDeviceTokenSet()
@@ -276,19 +264,21 @@ class Snapi
         $return = curl_exec($ch);
 
         if(curl_getinfo($ch, CURLINFO_HTTP_CODE) != 200) {
-            return false;
+            throw new Exception("getDeviceTokenSet Exception: HTTP Status Code != 200");
         }
 
         curl_close($ch);
 
-        if($this->validateDeviceTokenSet($return->dtoken1i)) {
-            return json_decode($return);
-        } else {
-            return false;
+        $return = json_decode($return);
+
+        if(!$return || !isset($return->dtoken1i) || !isset($return->dtoken1v)) {
+            throw new Exception("getDeviceTokenSet Exception: Invalid JSON / No dtoken1i returned / No dtoken1v returned");
         }
+
+        $this->device_token_set = $return;
 	}
 
-    private function validateDeviceTokenSet($dtoken1i)
+    private function validateDeviceTokenSet()
     {
         $timestamp = $this->getTimestamp();
 
@@ -301,7 +291,7 @@ class Snapi
         curl_setopt($ch, CURLOPT_HEADER, FALSE);
         curl_setopt($ch, CURLOPT_POST, TRUE);
         curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(array(
-            "device_unique_id" => base64_encode(hex2bin(sha1($dtoken1i))),
+            "device_unique_id" => base64_encode(hex2bin(sha1($this->device_token_set->dtoken1i))),
             "req_token" => $this->getRequestToken($this::STATIC_TOKEN, $timestamp),
             "timestamp" => $timestamp
         )));
@@ -318,12 +308,10 @@ class Snapi
         curl_exec($ch);
 
         if(curl_getinfo($ch, CURLINFO_HTTP_CODE) != 200) {
-            return false;
+            throw new Exception("validateDeviceTokenSet Exception: HTTP Status Code != 200");
         }
 
         curl_close($ch);
-
-        return true;
     }
 
     private function getClientAuthToken($username, $password, $timestamp)
@@ -343,15 +331,19 @@ class Snapi
 
         $return = curl_exec($ch);
 
+        if(curl_getinfo($ch, CURLINFO_HTTP_CODE) != 200) {
+            throw new Exception("getClientAuthToken Exception: HTTP Status Code != 200");
+        }
+
         curl_close($ch);
 
         $return = json_decode($return);
 
-        if($return->status != 200) {
-            return false;
+        if(!$return || $return->status != 200 || !isset($return->signature)) {
+            throw new Exception("getClientAuthToken Exception: Invalid JSON / Incorrect status / No signature returned.");
         }
 
-        return $return->signature;
+        $this->client_auth_token = $return->signature;
     }
 
     public function login($username, $password)
@@ -359,43 +351,24 @@ class Snapi
         $timestamp = $this->getTimestamp();
 
         if(!isset($this->google_auth_token)) {
-            $this->google_auth_token = $this->getGoogleAuthToken();
+            $this->getGoogleAuthToken();
         }
 
         if(!isset($this->google_attestation)) {
-            $this->google_attestation = $this->getGoogleAttestation($username, $password, $timestamp);
+            $this->getGoogleAttestation($username, $password, $timestamp);
         }
 
         if(!isset($this->google_gcm_id)) {
-            $this->google_gcm_id = $this->getGoogleGCMId();
+            $this->getGoogleGCMId();
         }
 
         if(!isset($this->device_token_set)) {
-            $this->device_token_set = $this->getDeviceTokenSet();
+            $this->getDeviceTokenSet();
+            $this->validateDeviceTokenSet();
         }
 
         if(!isset($this->client_auth_token)) {
-            $this->client_auth_token = $this->getClientAuthToken($username, $password, $timestamp);
-        }
-
-        if(!$this->google_auth_token) {
-            return "Error #1";
-        }
-
-        if(!$this->google_attestation) {
-            return "Error #2";
-        }
-
-        if(!$this->google_gcm_id) {
-            return "Error #3";
-        }
-
-        if(!$this->device_token_set) {
-            return "Error #4";
-        }
-
-        if(!$this->client_auth_token) {
-            return "Error #5";
+            $this->getClientAuthToken($username, $password, $timestamp);
         }
 
         $req_token = $this->getRequestToken($this::STATIC_TOKEN, $timestamp);
@@ -438,12 +411,16 @@ class Snapi
         $return = curl_exec($ch);
 
         if(curl_getinfo($ch, CURLINFO_HTTP_CODE) != 200) {
-            return "Error #6";
+            throw new Exception("login Exception: HTTP Status Code != 200");
         }
 
         curl_close($ch);
 
         $return = json_decode($return);
+
+        if(!$return) {
+            throw new Exception("login Exception: Invalid JSON");
+        }
 
         $this->username = $username;
 
@@ -459,10 +436,28 @@ class Snapi
         return $return;
     }
 
-    public function getSnapTag()
+    public function getSnapTag($qr_path = null, $user_id = null, $type = "SVG")
     {
         $timestamp = $this->getTimestamp();
         $req_token = $this->getRequestToken($this->auth_token, $timestamp);
+
+        $postfields = array(
+            "type" => $type,
+            "username" => $this->username,
+            "req_token" => $req_token,
+            "timestamp" => $timestamp
+        );
+
+        if(!$qr_path) {
+            if(!$user_id) {
+                $postfields["image"] = $this->qr_path;
+            } else {
+                $postfields["user_id"] = $user_id;
+            }
+        } else {
+            $postfields["image"] = $qr_path;
+        }
+        
 
         $ch = curl_init();
 
@@ -472,12 +467,7 @@ class Snapi
         curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, FALSE);
         curl_setopt($ch, CURLOPT_HEADER, FALSE);
         curl_setopt($ch, CURLOPT_POST, TRUE);
-        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query(array(
-            "image" => $this->qr_path,
-            "username" => $this->username,
-            "req_token" => $req_token,
-            "timestamp" => $timestamp
-        )));
+        curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postfields));
         curl_setopt($ch, CURLOPT_HTTPHEADER, array(
     		'Accept:',
     		'Expect:',
@@ -489,12 +479,23 @@ class Snapi
         curl_setopt($ch, CURLOPT_ENCODING, "gzip");
 
         $return = curl_exec($ch);
-
-        if(curl_getinfo($ch, CURLINFO_HTTP_CODE) != 200) {
-            return false;
-        }
+        $code = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 
         curl_close($ch);
+
+        if($code != 200) {
+            throw new Exception("getSnapTag Exception: HTTP Status Code = {$code}");
+        }
+
+        if($user_id) {
+            $return = json_decode($return);
+
+            if(!$return || !isset($return->imageData)) {
+                throw new Exception("getSnapTag Exception: Invalid JSON / No imageData provided");
+            }
+
+            return $return->imageData;
+        }
 
         return base64_encode($return);
     }
@@ -533,12 +534,10 @@ class Snapi
         $return = curl_exec($ch);
 
         if(curl_getinfo($ch, CURLINFO_HTTP_CODE) != 200) {
-            return false;
+            throw new Exception("postDeviceToken Exception: HTTP Status Code != 200");
         }
 
         curl_close($ch);
-
-        return true;
     }
 }
 
